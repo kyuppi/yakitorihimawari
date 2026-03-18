@@ -6,10 +6,6 @@
     <title>やきとり ひまわり | ネット予約</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Firebase SDK (Compatibility version) -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap');
         body { font-family: 'Noto Sans JP', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #fcfbf8; }
@@ -25,10 +21,9 @@
     <!-- Loading Screen -->
     <div id="loading-screen" class="fixed inset-0 bg-white/95 backdrop-blur-md z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
         <div class="loading-spinner mb-4"></div>
-        <p id="loading-status" class="text-[10px] font-black text-orange-600 tracking-[0.2em] uppercase text-center leading-relaxed px-6">
-            システム起動中...<br>
-            <span class="text-stone-400 font-normal mt-2 lowercase tracking-normal italic">Connecting to yakitori-81aab</span>
-        </p>
+        <div id="loading-status" class="text-[10px] font-black text-orange-600 tracking-[0.2em] uppercase text-center leading-relaxed px-6">
+            <p>システム接続中...</p>
+        </div>
     </div>
 
     <!-- Header -->
@@ -43,28 +38,35 @@
                     <p class="text-[8px] font-bold text-stone-400 mt-0.5 uppercase tracking-widest">Mobile Yakitori Order</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <div id="connection-badge" class="text-[10px] font-black px-2 py-1 bg-stone-100 text-stone-400 rounded-md flex items-center gap-1 transition-colors">
-                    <i data-lucide="database" class="w-3 h-3"></i> 待機中
-                </div>
+            <div id="connection-badge" class="text-[10px] font-black px-2 py-1 bg-stone-100 text-stone-400 rounded-md flex items-center gap-1 transition-colors">
+                <i data-lucide="database" class="w-3 h-3"></i> 待機中
             </div>
         </div>
     </header>
 
     <main class="max-w-xl mx-auto p-4 space-y-6">
+        <!-- Error Alert -->
+        <div id="error-banner" class="hidden bg-red-50 border border-red-200 p-4 rounded-2xl text-red-700 text-xs font-bold space-y-1">
+            <div class="flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                <span>接続エラー</span>
+            </div>
+            <p id="error-message" class="font-normal opacity-80 ml-6"></p>
+        </div>
+
         <form id="order-form" class="space-y-6">
-            <!-- Step 01: Customer Info -->
+            <!-- 01: Customer Info -->
             <div class="bg-white rounded-[2rem] shadow-sm border border-stone-200 p-6 space-y-5 order-card">
                 <div class="flex items-center gap-3 border-b border-stone-100 pb-4">
-                    <span class="bg-stone-900 text-white w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic italic">01</span>
-                    <h3 class="font-black text-sm text-stone-900">お客様情報と受取日</h3>
+                    <span class="bg-stone-900 text-white w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic">01</span>
+                    <h3 class="font-black text-sm text-stone-900">受取情報</h3>
                 </div>
                 
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-[10px] font-black text-stone-400 uppercase mb-1.5 ml-1">受取希望日を選択</label>
-                        <input type="date" id="order-date" required class="w-full p-4 bg-stone-50 rounded-2xl border border-stone-100 font-bold outline-none text-sm transition-all focus:ring-2 focus:ring-orange-500 focus:bg-white">
-                        <div id="location-badge" class="mt-2.5 hidden p-3 rounded-2xl text-[11px] font-bold flex items-center gap-2 border transition-all">
+                        <label class="block text-[10px] font-black text-stone-400 uppercase mb-1.5 ml-1">受取希望日</label>
+                        <input type="date" id="order-date" required class="w-full p-4 bg-stone-50 rounded-2xl border border-stone-100 font-bold outline-none text-sm focus:ring-2 focus:ring-orange-500 focus:bg-white">
+                        <div id="location-badge" class="mt-2.5 hidden p-3 rounded-2xl text-[11px] font-bold flex items-center gap-2 border transition-all italic">
                             <i data-lucide="map-pin" class="w-4 h-4"></i> <span id="location-text"></span>
                         </div>
                     </div>
@@ -73,33 +75,30 @@
                         <input type="text" id="order-name" required placeholder="お名前" class="w-full p-4 bg-stone-50 rounded-2xl border border-stone-100 font-bold outline-none text-sm focus:ring-2 focus:ring-orange-500 focus:bg-white">
                         <input type="tel" id="order-phone" required placeholder="電話番号" class="w-full p-4 bg-stone-50 rounded-2xl border border-stone-100 font-bold outline-none text-sm focus:ring-2 focus:ring-orange-500 focus:bg-white">
                     </div>
-
-                    <textarea id="order-notes" placeholder="備考（例：18時頃伺います / 塩少なめなど）" class="w-full p-4 bg-stone-50 rounded-2xl border border-stone-100 font-bold outline-none text-sm h-24 resize-none focus:ring-2 focus:ring-orange-500 focus:bg-white"></textarea>
                 </div>
             </div>
 
-            <!-- Step 02: Menu Selection -->
+            <!-- 02: Menu -->
             <div class="bg-white rounded-[2rem] shadow-sm border border-stone-200 p-6 space-y-5 order-card">
                 <div class="flex items-center justify-between border-b border-stone-100 pb-4">
                     <div class="flex items-center gap-3">
-                        <span class="bg-stone-900 text-white w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic italic">02</span>
+                        <span class="bg-stone-900 text-white w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black italic">02</span>
                         <h3 class="font-black text-sm text-stone-900 italic">MENU</h3>
                     </div>
-                    <span class="text-[10px] text-stone-400 font-bold uppercase tracking-widest italic">Price incl. Tax</span>
                 </div>
                 <div id="menu-container" class="grid gap-3">
                     <!-- Dynamic Items -->
                 </div>
             </div>
 
-            <!-- Floating Footer Summary -->
+            <!-- Floating Summary -->
             <div class="fixed bottom-6 left-4 right-4 z-50">
                 <div class="max-w-xl mx-auto bg-stone-900/90 text-white p-3.5 rounded-[2.5rem] shadow-2xl flex items-center gap-4 border border-white/10 backdrop-blur-lg">
-                    <div class="pl-4 leading-tight shrink-0">
-                        <p class="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-0.5">Total Amount</p>
-                        <p class="text-2xl font-black text-orange-500 italic">¥<span id="total-price" class="not-italic">0</span></p>
+                    <div class="pl-4 shrink-0">
+                        <p class="text-[9px] font-black text-stone-500 uppercase tracking-widest">Total</p>
+                        <p class="text-2xl font-black text-orange-500 italic">¥<span id="total-price">0</span></p>
                     </div>
-                    <button type="submit" id="submit-btn" disabled class="flex-1 bg-orange-600 hover:bg-orange-500 disabled:bg-stone-800 disabled:text-stone-600 text-white font-black py-4 rounded-3xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg active:scale-95 shadow-orange-900/20">
+                    <button type="submit" id="submit-btn" disabled class="flex-1 bg-orange-600 hover:bg-orange-500 disabled:bg-stone-800 disabled:text-stone-600 text-white font-black py-4 rounded-3xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg active:scale-95">
                         <span>予約を確定する</span>
                         <i data-lucide="send" class="w-4 h-4"></i>
                     </button>
@@ -109,40 +108,29 @@
     </main>
 
     <!-- Success Modal -->
-    <div id="success-modal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-6 transition-all">
+    <div id="success-modal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-6">
         <div class="bg-white rounded-[3rem] p-8 max-w-sm w-full text-center space-y-6 shadow-2xl animate-in zoom-in-95 duration-300">
             <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
                 <i data-lucide="check-circle-2" class="w-10 h-10"></i>
             </div>
-            <div class="space-y-2">
+            <div>
                 <h2 class="text-2xl font-black text-stone-900">予約完了！</h2>
-                <p class="text-sm text-stone-500 font-medium leading-relaxed">
-                    ご注文ありがとうございます。<br>
-                    受取日に店頭でお待ちしております！
-                </p>
+                <p class="text-sm text-stone-500 mt-2">受取日に店頭でお待ちしております。</p>
             </div>
-            <button onclick="closeModal()" class="w-full py-4 bg-stone-900 text-white rounded-2xl font-black text-sm tracking-widest hover:bg-stone-800 transition-colors">
-                閉じる
-            </button>
+            <button onclick="location.reload()" class="w-full py-4 bg-stone-900 text-white rounded-2xl font-black text-sm tracking-widest">閉じる</button>
         </div>
     </div>
 
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyBFHd2b0KlHvpgMi-oax7llhNaQV-yiLq8",
-            authDomain: "yakitori-81aab.firebaseapp.com",
-            projectId: "yakitori-81aab",
-            storageBucket: "yakitori-81aab.firebasestorage.app",
-            messagingSenderId: "765393606286",
-            appId: "1:765393606286:web:755c313fbed6e8ea42dbdf"
-        };
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const appId = "yakitori-himawari-main";
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'yakitori-himawari-main';
 
         const MENU = [
             { id: 'm1', name: 'ねぎま', price: 140 }, { id: 'm2', name: '焼き鳥', price: 140 },
@@ -157,93 +145,69 @@
 
         let cart = {};
         let soldOutItems = {};
+        let isAuthReady = false;
 
-        async function initApp() {
+        // 初期化
+        async function init() {
             lucide.createIcons();
-            
             try {
-                // 匿名認証
-                await auth.signInAnonymously().catch(e => console.warn("Auth check needed"));
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                showError("認証に失敗しました: " + err.message);
+            }
+        }
 
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                isAuthReady = true;
                 const badge = document.getElementById('connection-badge');
-                const inventoryRef = db.doc(`artifacts/${appId}/public/data/inventory/status`);
+                badge.className = "text-[10px] font-black px-2 py-1 bg-green-100 text-green-700 rounded-md flex items-center gap-1";
+                badge.innerHTML = `<i data-lucide="database" class="w-3 h-3"></i> 接続完了`;
+                lucide.createIcons();
                 
-                // Firestore監視
-                inventoryRef.onSnapshot((doc) => {
-                    if (doc.exists) {
-                        soldOutItems = doc.data().soldOut || {};
-                    }
-                    badge.classList.remove('bg-stone-100', 'text-stone-400');
-                    badge.classList.add('bg-green-100', 'text-green-700');
-                    badge.innerHTML = `<i data-lucide="database" class="w-3 h-3"></i> 接続済み`;
-                    lucide.createIcons();
-                    
+                // 在庫の同期
+                onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', 'status'), (snap) => {
+                    soldOutItems = snap.exists() ? snap.data().soldOut : {};
                     renderMenu();
                     hideLoading();
                 }, (err) => {
-                    console.error("Connection error details:", err);
-                    
-                    if (err.message.includes("does not exist")) {
-                        document.getElementById('loading-status').innerHTML = 
-                            "<span class='text-red-500 font-bold'>データベースが未作成です</span><br>" +
-                            "<span class='text-[8px] text-stone-500 lowercase'>FirebaseコンソールでFirestore Databaseを作成してください。</span>";
-                    } else {
-                        badge.innerHTML = `<i data-lucide="alert-circle" class="w-3 h-3"></i> オフライン`;
-                        hideLoading(); // 接続できなくてもメニューは出す
-                    }
-                    renderMenu();
+                    showError("同期エラー: " + err.message);
+                    hideLoading();
                 });
-
-            } catch (err) {
-                console.error("Critical Init Error:", err);
-                renderMenu();
-                hideLoading();
             }
-        }
-
-        window.onload = initApp;
-
-        function hideLoading() {
-            const screen = document.getElementById('loading-screen');
-            if (screen) {
-                screen.style.opacity = '0';
-                setTimeout(() => screen.classList.add('hidden'), 500);
-            }
-        }
+        });
 
         function renderMenu() {
             const container = document.getElementById('menu-container');
-            if (!container) return;
-            
             container.innerHTML = MENU.map(item => {
                 const isSoldOut = soldOutItems[item.id];
                 return `
-                <div class="relative bg-white border border-stone-100 rounded-[1.5rem] p-4 shadow-sm hover:shadow-md transition-all ${isSoldOut ? 'opacity-40 pointer-events-none grayscale' : ''}">
-                    <div class="flex items-center justify-between mb-3 px-1">
-                        <span class="font-black text-stone-900 tracking-tight">${item.name}</span>
-                        <span class="text-[10px] font-black text-orange-600 bg-orange-50 px-2 py-1 rounded-lg italic tracking-wider">¥${item.price}</span>
+                <div class="relative bg-white border border-stone-100 rounded-[1.5rem] p-4 shadow-sm ${isSoldOut ? 'opacity-40 grayscale pointer-events-none' : ''}">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="font-black text-stone-900">${item.name}</span>
+                        <span class="text-[10px] font-black text-orange-600 bg-orange-50 px-2 py-1 rounded-lg">¥${item.price}</span>
                     </div>
-                    <div class="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+                    <div class="flex gap-2">
                         ${FLAVORS.map(f => {
                             const key = `${item.id}-${f}`;
                             const count = cart[key] || 0;
                             return `
-                                <div class="flex-1 min-w-[85px] bg-stone-50 p-2 rounded-2xl border border-stone-100 flex flex-col items-center gap-1.5 transition-all ${count > 0 ? 'bg-orange-50/50 border-orange-200' : ''}">
-                                    <span class="text-[9px] font-black ${count > 0 ? 'text-orange-600' : 'text-stone-400'} uppercase">${f}</span>
-                                    <div class="flex items-center justify-between w-full gap-1">
-                                        <button type="button" onclick="updateQty('${item.id}','${f}',-1)" class="w-8 h-8 flex items-center justify-center bg-white rounded-xl text-stone-400 border border-stone-100 active:scale-90">-</button>
-                                        <span class="text-[13px] font-black ${count > 0 ? 'text-stone-900' : 'text-stone-400'}">${count}</span>
-                                        <button type="button" onclick="updateQty('${item.id}','${f}',1)" class="w-8 h-8 flex items-center justify-center bg-white rounded-xl text-orange-600 border border-orange-100 active:scale-90 shadow-sm">+</button>
+                                <div class="flex-1 bg-stone-50 p-2 rounded-2xl border border-stone-100 flex flex-col items-center gap-1.5 ${count > 0 ? 'bg-orange-50/50 border-orange-200' : ''}">
+                                    <span class="text-[8px] font-black text-stone-400">${f}</span>
+                                    <div class="flex items-center justify-between w-full">
+                                        <button type="button" onclick="window.updateQty('${item.id}','${f}',-1)" class="w-7 h-7 flex items-center justify-center bg-white rounded-lg border border-stone-100 text-stone-400 active:scale-90">-</button>
+                                        <span class="text-xs font-black">${count}</span>
+                                        <button type="button" onclick="window.updateQty('${item.id}','${f}',1)" class="w-7 h-7 flex items-center justify-center bg-white rounded-lg border border-orange-100 text-orange-600 active:scale-90 shadow-sm">+</button>
                                     </div>
                                 </div>
                             `;
                         }).join('')}
                     </div>
-                    ${isSoldOut ? `
-                        <div class="absolute inset-0 flex items-center justify-center z-10">
-                            <div class="bg-stone-900 text-white px-5 py-2 rounded-full text-[10px] font-black italic shadow-xl">本日売切れ</div>
-                        </div>
-                    ` : ''}
+                    ${isSoldOut ? '<div class="absolute inset-0 flex items-center justify-center"><span class="bg-stone-900 text-white text-[10px] font-black px-4 py-1 rounded-full">売切</span></div>' : ''}
                 </div>`;
             }).join('');
         }
@@ -257,84 +221,73 @@
         };
 
         function updateSummary() {
-            let total = 0;
-            let qty = 0;
+            let total = 0, qty = 0;
             Object.entries(cart).forEach(([k, v]) => {
                 const item = MENU.find(m => m.id === k.split('-')[0]);
                 total += (item?.price || 0) * v;
                 qty += v;
             });
             document.getElementById('total-price').innerText = total.toLocaleString();
-            
             const dateVal = document.getElementById('order-date').value;
             const loc = dateVal ? SCHEDULE[new Date(dateVal).getDay()] : null;
-            document.getElementById('submit-btn').disabled = qty === 0 || !loc;
+            document.getElementById('submit-btn').disabled = qty === 0 || !loc || !isAuthReady;
         }
 
         document.getElementById('order-date').onchange = (e) => {
-            const dateStr = e.target.value;
-            if (!dateStr) return;
-            const date = new Date(dateStr);
+            const date = new Date(e.target.value);
             const loc = SCHEDULE[date.getDay()];
             const badge = document.getElementById('location-badge');
-            badge.classList.remove('hidden');
+            badge.classList.toggle('hidden', !e.target.value);
             if (loc) {
-                document.getElementById('location-text').innerText = `受取場所: ${loc}`;
-                badge.className = "mt-2.5 p-3 rounded-2xl text-[11px] font-bold flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100";
+                document.getElementById('location-text').innerText = `受取: ${loc}`;
+                badge.className = "mt-2.5 p-3 rounded-2xl text-[11px] font-bold flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 italic";
             } else {
                 document.getElementById('location-text').innerText = '本日は定休日です';
-                badge.className = "mt-2.5 p-3 rounded-2xl text-[11px] font-bold flex items-center gap-2 bg-red-50 text-red-700 border border-red-100";
+                badge.className = "mt-2.5 p-3 rounded-2xl text-[11px] font-bold flex items-center gap-2 bg-red-50 text-red-700 border border-red-100 italic";
             }
             updateSummary();
         };
 
-        function closeModal() {
-            document.getElementById('success-modal').classList.add('hidden');
-            document.getElementById('success-modal').classList.remove('flex');
-        }
-
         document.getElementById('order-form').onsubmit = async (e) => {
             e.preventDefault();
-            const submitBtn = document.getElementById('submit-btn');
-            const dateStr = document.getElementById('order-date').value;
-            const loc = SCHEDULE[new Date(dateStr).getDay()];
-
-            if (!loc) return alert('営業日を選択してください。');
-
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 送信中...`;
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>`;
             lucide.createIcons();
 
-            const orderData = {
-                name: document.getElementById('order-name').value,
-                phone: document.getElementById('order-phone').value,
-                notes: document.getElementById('order-notes').value,
-                date: dateStr,
-                location: loc,
-                items: cart,
-                total: parseInt(document.getElementById('total-price').innerText.replace(/,/g,'')),
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-
             try {
-                await db.collection(`artifacts/${appId}/public/data/reservations`).add(orderData);
-                const modal = document.getElementById('success-modal');
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-                cart = {};
-                document.getElementById('order-form').reset();
-                document.getElementById('location-badge').classList.add('hidden');
-                updateSummary();
-                renderMenu();
+                const dateStr = document.getElementById('order-date').value;
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reservations'), {
+                    name: document.getElementById('order-name').value,
+                    phone: document.getElementById('order-phone').value,
+                    date: dateStr,
+                    location: SCHEDULE[new Date(dateStr).getDay()],
+                    items: cart,
+                    total: parseInt(document.getElementById('total-price').innerText.replace(/,/g,'')),
+                    createdAt: serverTimestamp()
+                });
+                document.getElementById('success-modal').classList.replace('hidden', 'flex');
             } catch (err) {
-                console.error("Order Submit Error:", err);
-                alert('注文を送信できませんでした。データベース(default)が作成されているか確認してください。');
-            } finally {
-                submitBtn.innerHTML = `<span>予約を確定する</span><i data-lucide="send" class="w-4 h-4"></i>`;
+                showError("送信エラー: " + err.message);
+                btn.disabled = false;
+                btn.innerHTML = `<span>予約を確定する</span><i data-lucide="send" class="w-4 h-4"></i>`;
                 lucide.createIcons();
-                updateSummary();
             }
         };
+
+        function showError(msg) {
+            const banner = document.getElementById('error-banner');
+            banner.classList.remove('hidden');
+            document.getElementById('error-message').innerText = msg;
+        }
+
+        function hideLoading() {
+            const screen = document.getElementById('loading-screen');
+            screen.style.opacity = '0';
+            setTimeout(() => screen.classList.add('hidden'), 500);
+        }
+
+        init();
     </script>
 </body>
 </html>
