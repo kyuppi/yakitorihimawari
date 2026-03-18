@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>やきとり ひまわり | ネット予約</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #fcfbf8; }
+        .loading-spinner { border: 3px solid rgba(234, 88, 12, 0.1); border-left-color: #ea580c; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="text-stone-800 pb-32">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 bg-white/95 backdrop-blur-md z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
+        <div id="loading-spinner" class="loading-spinner mb-4"></div>
+        <p id="loading-text" class="text-[10px] font-black text-orange-600 tracking-[0.2em] uppercase">Connecting to Himawari</p>
+        <button id="retry-btn" class="hidden mt-4 px-6 py-2 bg-orange-600 text-white rounded-full font-bold text-xs shadow-lg" onclick="location.reload()">再読み込みする</button>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-stone-200">
+        <div class="max-w-xl mx-auto px-5 h-16 flex justify-between items-center">
+            <div class="flex items-center gap-2.5">
+                <div class="bg-orange-600 p-1.5 rounded-xl shadow-lg shadow-orange-200">
+                    <i data-lucide="sun" class="text-white w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-black tracking-tighter text-stone-900 leading-none">ひまわり</h1>
+                    <p class="text-[8px] font-bold text-stone-400 tracking-widest mt-0.5 uppercase">Yakitori Order System</p>
+                </div>
+            </div>
+            <div class="text-[10px] font-black px-2 py-1 bg-stone-100 text-stone-500 rounded-md">一般予約</div>
+        </div>
+    </header>
+
+    <main class="max-w-xl mx-auto p-4 space-y-6">
+        
+        <!-- Weekly Schedule Info -->
+        <section class="bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-100 rounded-3xl p-5 shadow-sm">
+            <div class="flex items-center gap-2 mb-4">
+                <div class="w-1.5 h-4 bg-orange-500 rounded-full"></div>
+                <h2 class="text-xs font-black text-orange-900 uppercase tracking-widest">出店スケジュール</h2>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white/60 p-2.5 rounded-xl border border-orange-200/50">
+                    <p class="text-[9px] font-black text-orange-400 mb-0.5">木・日曜日</p>
+                    <p class="text-[11px] font-bold text-stone-700">ジョイフーズ 藪塚店</p>
+                </div>
+                <div class="bg-white/60 p-2.5 rounded-xl border border-orange-200/50">
+                    <p class="text-[9px] font-black text-orange-400 mb-0.5">金曜日</p>
+                    <p class="text-[11px] font-bold text-stone-700">アバンセ 玉村</p>
+                </div>
+                <div class="bg-white/60 p-2.5 rounded-xl border border-orange-200/50">
+                    <p class="text-[9px] font-black text-orange-400 mb-0.5">土曜日</p>
+                    <p class="text-[11px] font-bold text-stone-700">アバンセ 粕川</p>
+                </div>
+                <div class="bg-stone-200/40 p-2.5 rounded-xl border border-stone-200/50 flex flex-col justify-center">
+                    <p class="text-[9px] font-black text-stone-400 mb-0.5">月・火・水</p>
+                    <p class="text-[11px] font-bold text-stone-400 tracking-tighter">定休日</p>
+                </div>
+            </div>
+        </section>
+
+        <form id="order-form" class="space-y-6">
+            <!-- Customer Section -->
+            <div class="bg-white rounded-[2.5rem] shadow-sm border border-stone-200 p-6 space-y-5">
+                <div class="flex items-center gap-3 border-b border-stone-100 pb-4">
+                    <span class="bg-stone-900 text-white w-6 h-6 rounded-xl flex items-center justify-center text-[11px] font-black italic shadow-lg shadow-stone-200">01</span>
+                    <h3 class="font-black text-sm tracking-tight">お客様情報と受取日</h3>
+                </div>
+                
+                <div class="space-y-4">
+                    <!-- Date & Location -->
+                    <div>
+                        <label class="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">受取希望日</label>
+                        <input type="date" id="order-date" required class="w-full p-4 bg-stone-50 rounded-2xl border border-stone-100 focus:ring-2 focus:ring-orange-500 font-bold outline-none text-sm transition-all shadow-inner">
+                        <div id="location-badge" class="mt-2.5 hidden p-3 rounded-2xl text-[11px] font-bold flex items-center gap-2.5 transition-all">
+                            <i data-lucide="info" class="w-4 h-4"></i> <span id="location-text"></span>
+                        </div>
+                    </div>
+
+                    <!-- Name & Phone -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">お名前</label>
+                            <input type="text" id="order-name" required placeholder="ひまわり 太郎" class="w-full p-4 bg-stone-50 rounded-2xl border border-stone-100 focus:ring-2 focus:ring-orange-500 font-bold outline-none text-sm shadow-inner">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">電話番号</label>
+                            <input type="tel" id="order-phone" required placeholder="09012345678" class="w-full p-4 bg-stone-50 rounded-2xl border border-stone-100 focus:ring-2 focus:ring-orange-500 font-bold outline-none text-sm shadow-inner">
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="space-y-1.5">
+                        <label class="block text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">備考</label>
+                        <textarea id="order-notes" placeholder="18時頃伺います / 塩少なめ希望 など" class="w-full p-4 bg-stone-50 rounded-2xl border border-stone-100 focus:ring-2 focus:ring-orange-500 font-bold outline-none text-sm h-24 resize-none shadow-inner"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Menu Section -->
+            <div class="bg-white rounded-[2.5rem] shadow-sm border border-stone-200 p-6 space-y-5">
+                <div class="flex items-center justify-between border-b border-stone-100 pb-4">
+                    <div class="flex items-center gap-3">
+                        <span class="bg-stone-900 text-white w-6 h-6 rounded-xl flex items-center justify-center text-[11px] font-black italic shadow-lg shadow-stone-200">02</span>
+                        <h3 class="font-black text-sm tracking-tight">焼き鳥メニュー</h3>
+                    </div>
+                    <span class="text-[10px] text-stone-400 font-bold bg-stone-100 px-2 py-0.5 rounded-full">税込</span>
+                </div>
+                
+                <div id="menu-container" class="space-y-3">
+                    <!-- Dynamic Items -->
+                </div>
+            </div>
+
+            <!-- Footer Floating Cart -->
+            <div class="fixed bottom-6 left-4 right-4 z-50">
+                <div class="max-w-xl mx-auto bg-stone-900 text-white p-3.5 rounded-[2rem] shadow-2xl flex items-center gap-4 border border-white/10 backdrop-blur-sm">
+                    <div class="pl-4 leading-tight shrink-0">
+                        <p class="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-0.5">Total Amount</p>
+                        <p class="text-2xl font-black text-orange-500 italic">¥<span id="total-price" class="not-italic">0</span></p>
+                    </div>
+                    <button type="submit" id="submit-btn" disabled class="flex-1 bg-orange-600 hover:bg-orange-500 disabled:bg-stone-800 disabled:text-stone-600 text-white font-black py-4 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm shadow-lg shadow-orange-950/20">
+                        <span>予約を確定する</span>
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global config from environment
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'himawari-yakitori-v1';
+
+        const MENU = [
+            { id: 'm1', name: 'ねぎま', price: 140 }, { id: 'm2', name: '焼き鳥', price: 140 },
+            { id: 'm3', name: '手羽中', price: 140 }, { id: 'm4', name: '鳥軟骨', price: 140 },
+            { id: 'm5', name: '豚レバー', price: 140 }, { id: 'm6', name: 'カシラ', price: 140 },
+            { id: 'm7', name: '豚タン', price: 140 }, { id: 'm8', name: '豚白モツ', price: 120 },
+            { id: 'm9', name: '鶏皮', price: 120 }, { id: 'm10', name: 'つくね', price: 120 },
+            { id: 'm11', name: 'むねニンニク', price: 120 },
+        ];
+        const FLAVORS = ['タレ', '塩', '無'];
+        const SCHEDULE = { 0: 'ジョイフーズ 藪塚店', 4: 'ジョイフーズ 藪塚店', 5: 'アバンセ 玉村', 6: 'アバンセ 粕川' };
+
+        let cart = {};
+        let soldOutItems = {};
+        let initialized = false;
+
+        // Safety timeout - if nothing happens in 8s, show retry
+        const timeoutId = setTimeout(() => {
+            if (!initialized) {
+                document.getElementById('loading-spinner').classList.add('hidden');
+                document.getElementById('loading-text').innerText = "接続に時間がかかっています。ネットワークを確認してください。";
+                document.getElementById('retry-btn').classList.remove('hidden');
+            }
+        }, 8000);
+
+        async function startApp() {
+            lucide.createIcons();
+
+            try {
+                // RULE 3 - Auth Before Queries
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        // Once authenticated, start listening for data
+                        setupListeners();
+                    }
+                });
+            } catch (err) {
+                console.error("Auth failed:", err);
+                document.getElementById('loading-text').innerText = "認証エラーが発生しました。";
+                document.getElementById('retry-btn').classList.remove('hidden');
+            }
+        }
+
+        function setupListeners() {
+            // RULE 1 - Use strict path
+            const inventoryDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', 'status');
+            
+            onSnapshot(inventoryDocRef, (snap) => {
+                soldOutItems = snap.exists() ? snap.data().soldOut || {} : {};
+                renderMenu();
+                
+                if (!initialized) {
+                    clearTimeout(timeoutId);
+                    initialized = true;
+                    hideLoading();
+                }
+            }, (error) => {
+                console.error("Firestore listen error:", error);
+                // Even on error, we try to show the menu with local data
+                renderMenu();
+                hideLoading();
+            });
+        }
+
+        function hideLoading() {
+            const screen = document.getElementById('loading-screen');
+            screen.style.opacity = '0';
+            setTimeout(() => screen.classList.add('hidden'), 500);
+        }
+
+        function renderMenu() {
+            const container = document.getElementById('menu-container');
+            if (!container) return;
+
+            container.innerHTML = MENU.map(item => {
+                const isSoldOut = soldOutItems[item.id];
+                return `
+                <div class="group relative bg-stone-50/50 border border-stone-100 rounded-3xl p-4 transition-all ${isSoldOut ? 'opacity-40 grayscale pointer-events-none' : 'hover:border-orange-200'}">
+                    <div class="flex items-center justify-between mb-3 px-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-black text-[15px] text-stone-900">${item.name}</span>
+                            <span class="text-[10px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full italic">¥${item.price}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-2.5 overflow-x-auto hide-scrollbar">
+                        ${FLAVORS.map(f => {
+                            const key = `${item.id}-${f}`;
+                            const count = cart[key] || 0;
+                            return `
+                                <div class="flex-1 min-w-[80px] flex flex-col items-center gap-1.5 p-2 bg-white rounded-2xl border border-stone-100 shadow-sm">
+                                    <span class="text-[9px] font-black text-stone-400 uppercase tracking-widest">${f}</span>
+                                    <div class="flex items-center w-full justify-between gap-1">
+                                        <button type="button" onclick="window.updateQty('${item.id}','${f}',-1)" class="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-900 transition-colors bg-stone-50 rounded-lg font-black">-</button>
+                                        <span class="w-4 text-center text-[13px] font-black text-stone-800">${count}</span>
+                                        <button type="button" onclick="window.updateQty('${item.id}','${f}',1)" class="w-8 h-8 flex items-center justify-center text-orange-600 hover:bg-orange-100 transition-colors bg-orange-50 rounded-lg font-black">+</button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+
+                    ${isSoldOut ? `
+                        <div class="absolute inset-0 bg-stone-100/20 backdrop-blur-[1px] flex items-center justify-center rounded-3xl">
+                            <div class="bg-stone-900 text-white px-4 py-1.5 rounded-full text-[10px] font-black tracking-[0.2em] italic uppercase shadow-xl">Sold Out</div>
+                        </div>
+                    ` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        window.updateQty = (id, flavor, delta) => {
+            const key = `${id}-${flavor}`;
+            cart[key] = Math.max(0, (cart[key] || 0) + delta);
+            if (cart[key] === 0) delete cart[key];
+            updateSummary();
+            renderMenu();
+        };
+
+        function updateSummary() {
+            let total = 0;
+            let qty = 0;
+            Object.entries(cart).forEach(([k, v]) => {
+                const item = MENU.find(m => m.id === k.split('-')[0]);
+                total += (item?.price || 0) * v;
+                qty += v;
+            });
+            document.getElementById('total-price').innerText = total.toLocaleString();
+            
+            const dateVal = document.getElementById('order-date').value;
+            const hasDate = !!dateVal;
+            const validLoc = hasDate && !!SCHEDULE[new Date(dateVal).getDay()];
+            document.getElementById('submit-btn').disabled = qty === 0 || !validLoc;
+        }
+
+        document.getElementById('order-date').onchange = (e) => {
+            const date = new Date(e.target.value);
+            const loc = SCHEDULE[date.getDay()];
+            const badge = document.getElementById('location-badge');
+            
+            if (e.target.value) {
+                badge.classList.remove('hidden');
+                if (loc) {
+                    document.getElementById('location-text').innerText = `受取場所: ${loc}`;
+                    badge.className = "mt-2.5 p-3 rounded-2xl text-[11px] font-bold flex items-center gap-2.5 bg-blue-50 text-blue-700 border border-blue-100";
+                } else {
+                    document.getElementById('location-text').innerText = '申し訳ありません。この日は定休日です。';
+                    badge.className = "mt-2.5 p-3 rounded-2xl text-[11px] font-bold flex items-center gap-2.5 bg-red-50 text-red-700 border border-red-100";
+                }
+            } else {
+                badge.classList.add('hidden');
+            }
+            updateSummary();
+        };
+
+        document.getElementById('order-form').onsubmit = async (e) => {
+            e.preventDefault();
+            if (!auth.currentUser) {
+                alert('通信環境を確認して、もう一度お試しください。');
+                return;
+            }
+
+            const dateStr = document.getElementById('order-date').value;
+            const loc = SCHEDULE[new Date(dateStr).getDay()];
+            
+            if (!loc) {
+                alert('定休日は予約できません。');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `送信中...`;
+
+            try {
+                // RULE 1 - Public Path
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reservations'), {
+                    name: document.getElementById('order-name').value,
+                    phone: document.getElementById('order-phone').value,
+                    notes: document.getElementById('order-notes').value,
+                    date: dateStr,
+                    location: loc,
+                    items: cart,
+                    total: parseInt(document.getElementById('total-price').innerText.replace(/,/g,'')),
+                    createdAt: serverTimestamp(),
+                    userId: auth.currentUser.uid
+                });
+                
+                alert('予約が完了しました！ご来店お待ちしております。');
+                cart = {};
+                document.getElementById('order-form').reset();
+                document.getElementById('location-badge').classList.add('hidden');
+                updateSummary();
+                renderMenu();
+            } catch (err) {
+                console.error("Order error:", err);
+                alert('注文の送信に失敗しました。もう一度お試しください。');
+            } finally {
+                submitBtn.innerHTML = `<span>予約を確定する</span><i data-lucide="chevron-right" class="w-4 h-4"></i>`;
+                updateSummary();
+            }
+        };
+
+        // Start initialization
+        startApp();
+    </script>
+</body>
+</html>
