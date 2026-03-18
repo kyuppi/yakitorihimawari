@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ひまわり店長専用 | 管理パネル</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; background-color: #0c0a09; color: #e7e5e4; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .admin-card { background: #1c1917; border: 1px solid #292524; border-radius: 1.5rem; }
+    </style>
+</head>
+<body class="pb-12">
+
+    <!-- Auth Guard (パスワード: 613613613) -->
+    <div id="auth-screen" class="fixed inset-0 bg-stone-950 z-[100] flex flex-col items-center justify-center p-6 transition-opacity duration-500">
+        <div class="bg-stone-900 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl border border-stone-800 text-center">
+            <div class="bg-orange-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-orange-900/40">
+                <i data-lucide="shield-check" class="text-white w-8 h-8"></i>
+            </div>
+            <h1 class="text-xl font-black mb-8 tracking-widest italic">HIMAWARI ADMIN</h1>
+            <input type="password" id="pass-input" placeholder="PASSCODE" class="w-full p-4 bg-stone-950 rounded-2xl mb-4 text-center font-bold outline-none border border-stone-800 focus:border-orange-600 transition-all tracking-[0.2em] text-2xl text-orange-500">
+            <button id="login-btn" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-2xl transition-all active:scale-95">ログイン</button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-content" class="hidden">
+        <header class="sticky top-0 z-40 bg-stone-950/80 backdrop-blur-md border-b border-stone-800">
+            <div class="max-w-4xl mx-auto px-6 h-20 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-orange-600 p-1.5 rounded-lg">
+                        <i data-lucide="layout-dashboard" class="text-white w-5 h-5"></i>
+                    </div>
+                    <h1 class="font-black text-lg italic tracking-tighter">ADMIN DASHBOARD</h1>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="csv-btn" class="bg-stone-800 hover:bg-stone-700 p-3 rounded-xl transition-all active:scale-90" title="CSV出力">
+                        <i data-lucide="download" class="w-5 h-5 text-green-500"></i>
+                    </button>
+                    <button id="logout-btn" class="bg-stone-900 text-stone-500 p-3 rounded-xl hover:text-white transition-all">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-4xl mx-auto p-6 space-y-8">
+            <!-- Stats -->
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div class="admin-card p-6">
+                    <p class="text-[10px] font-black text-stone-500 uppercase tracking-widest mb-1">本日の予約</p>
+                    <p id="today-count" class="text-4xl font-black text-orange-500">0</p>
+                </div>
+                <div class="admin-card p-6">
+                    <p class="text-[10px] font-black text-stone-500 uppercase tracking-widest mb-1">累計予約数</p>
+                    <p id="all-count" class="text-4xl font-black text-stone-400">0</p>
+                </div>
+                <div class="admin-card p-6 hidden md:flex flex-col justify-center">
+                    <p class="text-[10px] font-black text-stone-500 uppercase tracking-widest mb-1">システム状態</p>
+                    <p class="text-sm font-bold text-green-500 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> オンライン同期中
+                    </p>
+                </div>
+            </div>
+
+            <!-- Inventory Manager -->
+            <section class="admin-card overflow-hidden">
+                <div class="p-5 border-b border-stone-800 flex justify-between items-center bg-stone-900/50">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="package-search" class="w-4 h-4 text-orange-500"></i>
+                        <h3 class="text-xs font-black uppercase tracking-widest">在庫・売切設定</h3>
+                    </div>
+                    <span class="text-[9px] text-stone-500 font-bold">タップで「売切」を切り替え</span>
+                </div>
+                <div id="inventory-grid" class="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                </div>
+            </section>
+
+            <!-- Order List -->
+            <section class="space-y-4">
+                <div class="flex items-center justify-between px-2">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-stone-500 flex items-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4"></i> 最新の予約状況
+                    </h3>
+                </div>
+                <div id="reservations-list" class="space-y-4">
+                    <div class="text-center py-20 text-stone-600 font-bold italic">予約データを読み込み中...</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="notification-container" class="fixed bottom-6 right-6 z-[60] flex flex-col gap-3 w-80"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'yakitori-himawari-main';
+
+        const MENU = [
+            { id: 'm1', name: 'ねぎま' }, { id: 'm2', name: '焼き鳥' }, { id: 'm3', name: '手羽中' },
+            { id: 'm4', name: '鳥軟骨' }, { id: 'm5', name: '豚レバー' }, { id: 'm6', name: 'カシラ' },
+            { id: 'm7', name: '豚タン' }, { id: 'm8', name: '豚白モツ' }, { id: 'm9', name: '鶏皮' },
+            { id: 'm10', name: 'つくね' }, { id: 'm11', name: 'むねニンニク' }
+        ];
+
+        let soldOutItems = {};
+        let reservations = [];
+        let isInitialLoad = true;
+
+        async function init() {
+            lucide.createIcons();
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+
+            document.getElementById('login-btn').onclick = () => {
+                // パスワードを 613613613 に更新
+                if(document.getElementById('pass-input').value === '613613613') {
+                    document.getElementById('auth-screen').classList.add('opacity-0', 'pointer-events-none');
+                    document.getElementById('main-content').classList.remove('hidden');
+                    startSync();
+                } else {
+                    alert("パスコードが違います");
+                }
+            };
+        }
+
+        function startSync() {
+            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', 'status'), (snap) => {
+                soldOutItems = snap.exists() ? snap.data().soldOut : {};
+                renderInventory();
+            });
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'reservations'), (snap) => {
+                const newRes = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+                    .sort((a,b) => {
+                        const timeA = a.createdAt?.seconds || 0;
+                        const timeB = b.createdAt?.seconds || 0;
+                        return timeB - timeA;
+                    });
+                
+                if (!isInitialLoad && newRes.length > reservations.length) {
+                    showNotification("新しい注文が入りました！");
+                }
+
+                reservations = newRes;
+                renderReservations();
+                updateStats();
+                isInitialLoad = false;
+            });
+        }
+
+        function renderInventory() {
+            const grid = document.getElementById('inventory-grid');
+            grid.innerHTML = MENU.map(item => {
+                const isSold = soldOutItems[item.id];
+                return `
+                <button onclick="window.toggleStock('${item.id}')" 
+                    class="p-4 rounded-2xl border font-black text-xs transition-all flex flex-col items-center gap-2 active:scale-95 ${isSold ? 'bg-red-950/30 border-red-800 text-red-500' : 'bg-stone-800/50 border-stone-700 text-stone-300'}">
+                    <span>${item.name}</span>
+                    <span class="text-[8px] px-2 py-0.5 rounded-full ${isSold ? 'bg-red-600 text-white' : 'bg-stone-700 text-stone-500'}">
+                        ${isSold ? '売切中' : '販売中'}
+                    </span>
+                </button>
+            `}).join('');
+        }
+
+        window.toggleStock = async (id) => {
+            const newSold = { ...soldOutItems, [id]: !soldOutItems[id] };
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', 'status'), { soldOut: newSold });
+        };
+
+        function renderReservations() {
+            const list = document.getElementById('reservations-list');
+            if (reservations.length === 0) {
+                list.innerHTML = `<div class="text-center py-20 text-stone-700 font-bold italic">まだ予約はありません</div>`;
+                return;
+            }
+
+            list.innerHTML = reservations.map(res => {
+                const date = res.createdAt?.toDate ? res.createdAt.toDate().toLocaleString('ja-JP') : '不明';
+                const isToday = res.date === new Date().toISOString().split('T')[0];
+                
+                return `
+                <div class="admin-card p-6 space-y-4 relative overflow-hidden ${isToday ? 'border-orange-800/50 ring-1 ring-orange-900/20' : ''}">
+                    ${isToday ? '<div class="absolute top-0 right-0 bg-orange-600 text-[8px] font-black px-3 py-1 rounded-bl-xl text-white tracking-widest">本日受取</div>' : ''}
+                    
+                    <div class="flex justify-between items-start">
+                        <div class="space-y-1">
+                            <span class="text-[9px] font-black text-stone-500 uppercase tracking-tighter">${date} 注文</span>
+                            <h4 class="text-xl font-black text-white">${res.name} 様</h4>
+                            <a href="tel:${res.phone}" class="text-xs text-orange-500 font-bold flex items-center gap-1">
+                                <i data-lucide="phone" class="w-3 h-3"></i> ${res.phone}
+                            </a>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] font-black text-stone-500 uppercase block mb-1">${res.location}</span>
+                            <p class="text-2xl font-black text-orange-500">¥${(res.total || 0).toLocaleString()}</p>
+                            <span class="text-[9px] font-bold text-stone-600 italic underline">${res.date} 受取希望</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] font-bold text-stone-400 border-t border-stone-800/50 pt-4">
+                        ${Object.entries(res.items || {}).map(([key, qty]) => {
+                            const [id, flavor] = key.split('-');
+                            const itemName = MENU.find(m => m.id === id)?.name || id;
+                            return `
+                                <div class="flex justify-between border-b border-stone-800/30 pb-1 px-1">
+                                    <span>${itemName} <span class="text-[9px] text-stone-600">(${flavor})</span></span>
+                                    <span class="text-stone-200">${qty}本</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;}).join('');
+            lucide.createIcons();
+        }
+
+        function updateStats() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('today-count').innerText = reservations.filter(r => r.date === today).length;
+            document.getElementById('all-count').innerText = reservations.length;
+        }
+
+        document.getElementById('csv-btn').onclick = () => {
+            if (reservations.length === 0) return alert("データがありません");
+            const BOM = "\uFEFF";
+            const headers = ["注文日時", "受取日", "受取場所", "名前", "電話番号", "合計金額", "注文内容"];
+            const rows = reservations.map(r => [
+                r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString('ja-JP') : '',
+                r.date, r.location, r.name, r.phone, r.total,
+                Object.entries(r.items || {}).map(([k, v]) => `${k}:${v}本`).join(' / ')
+            ].map(val => `"${val}"`).join(","));
+            const csvContent = BOM + [headers.join(","), ...rows].join("\n");
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `himawari_orders_${new Date().toLocaleDateString()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        function showNotification(msg) {
+            const container = document.getElementById('notification-container');
+            const toast = document.createElement('div');
+            toast.className = "bg-orange-600 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-3 font-black text-sm animate-bounce border border-white/20";
+            toast.innerHTML = `<i data-lucide="bell"></i> <span>${msg}</span>`;
+            container.appendChild(toast);
+            lucide.createIcons();
+            setTimeout(() => {
+                toast.classList.remove('animate-bounce');
+                toast.classList.add('opacity-0', 'transition-opacity', 'duration-1000');
+                setTimeout(() => toast.remove(), 1000);
+            }, 5000);
+        }
+
+        document.getElementById('logout-btn').onclick = () => {
+            if(confirm("ログアウトしますか？")) location.reload();
+        };
+
+        init();
+    </script>
+</body>
+</html>
