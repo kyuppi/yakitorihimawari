@@ -19,13 +19,13 @@
     <!-- Loading Screen -->
     <div id="loading-screen" class="fixed inset-0 bg-stone-950 z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
         <div class="loading-spinner mb-4"></div>
-        <div class="text-[10px] font-black text-orange-600 tracking-[0.2em] uppercase">管理システム接続中...</div>
+        <div id="loading-text" class="text-[10px] font-black text-orange-600 tracking-[0.2em] uppercase">管理システム接続中...</div>
     </div>
 
     <!-- Header -->
     <header class="bg-stone-900/80 backdrop-blur-md sticky top-0 z-40 border-b border-stone-800">
         <div class="max-w-xl mx-auto px-5 h-16 flex justify-between items-center">
-            <div class="flex items-center gap-2.5 cursor-pointer" id="logo-trigger">
+            <div class="flex items-center gap-2.5">
                 <div class="bg-orange-600 p-1.5 rounded-xl shadow-lg shadow-orange-900/40">
                     <i data-lucide="shield-check" class="text-white w-5 h-5"></i>
                 </div>
@@ -35,7 +35,7 @@
         </div>
     </header>
 
-    <!-- Login Overlay (Initial state) -->
+    <!-- Login Overlay -->
     <div id="login-overlay" class="fixed inset-0 bg-stone-950 z-50 flex items-center justify-center p-6">
         <div class="w-full max-w-sm space-y-8 text-center">
             <div class="space-y-2">
@@ -45,7 +45,8 @@
             </div>
             <div class="space-y-4">
                 <input type="password" id="admin-pass-input" inputmode="numeric" placeholder="••••••••" class="w-full p-5 bg-stone-900 rounded-[2rem] text-center font-black text-2xl outline-none border-2 border-stone-800 focus:border-orange-600 transition-all text-white">
-                <button id="login-btn" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-orange-900/20 active:scale-95 transition-all">
+                <div id="login-error-msg" class="text-red-500 text-[10px] font-bold hidden">パスコードが正しくありません</div>
+                <button id="login-btn" class="w-full bg-orange-600 hover:bg-orange-500 disabled:bg-stone-800 disabled:text-stone-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-orange-900/20 active:scale-95 transition-all">
                     ログイン
                 </button>
             </div>
@@ -58,8 +59,8 @@
         
         <!-- Tab Navigation -->
         <div class="flex bg-stone-900 p-1.5 rounded-[2rem] sticky top-20 z-30 border border-stone-800">
-            <button onclick="switchTab('inventory')" id="tab-inventory" class="flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all bg-orange-600 text-white">在庫管理</button>
-            <button onclick="switchTab('reservations')" id="tab-reservations" class="flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all text-stone-500">予約一覧</button>
+            <button id="tab-inventory-btn" class="flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all bg-orange-600 text-white">在庫管理</button>
+            <button id="tab-reservations-btn" class="flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all text-stone-500">予約一覧</button>
         </div>
 
         <!-- Section: Inventory -->
@@ -77,10 +78,10 @@
         <section id="section-reservations" class="hidden space-y-6">
             <div class="flex items-center justify-between px-2">
                 <h3 class="text-sm font-black italic text-stone-400">最新の予約</h3>
-                <button onclick="refreshOrders()" class="text-orange-500"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
+                <button id="refresh-orders-btn" class="text-orange-500"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
             </div>
             <div id="reservation-list" class="space-y-4">
-                <p class="text-center py-20 text-stone-600 text-xs italic">予約データを読み込み中...</p>
+                <p id="reservation-loading-msg" class="text-center py-20 text-stone-600 text-xs italic">予約データを読み込み中...</p>
             </div>
         </section>
 
@@ -95,22 +96,14 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, onSnapshot, setDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, collection, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBFHd2b0KlHvpgMi-oax7llhNaQV-yiLq8",
-            authDomain: "yakitori-81aab.firebaseapp.com",
-            projectId: "yakitori-81aab",
-            storageBucket: "yakitori-81aab.firebasestorage.app",
-            messagingSenderId: "765393606286",
-            appId: "1:765393606286:web:755c313fbed6e8ea42dbdf",
-            measurementId: "G-EJJ13648XH"
-        };
-
+        // Global values provided by environment
+        const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = 'yakitori-himawari-main';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'yakitori-himawari-main';
 
         const MENU = [
             { id: 'm1', name: 'ねぎま' }, { id: 'm2', name: '焼き鳥' },
@@ -123,71 +116,113 @@
 
         let soldOutItems = {};
         let currentUser = null;
+        let isAuthReady = false;
 
-        async function init() {
+        window.onload = function() {
             lucide.createIcons();
+            
+            const loginBtn = document.getElementById('login-btn');
+            loginBtn.onclick = function() {
+                if (!isAuthReady) {
+                    alert("データベース接続を待っています。もう一度お試しください。");
+                    return;
+                }
+                const passInput = document.getElementById('admin-pass-input').value;
+                const errorMsg = document.getElementById('login-error-msg');
+                
+                if (passInput === '613613613') {
+                    document.getElementById('login-overlay').classList.add('hidden');
+                    document.getElementById('admin-main').classList.remove('hidden');
+                    errorMsg.classList.add('hidden');
+                    // ログイン成功後にデータの読み込みを開始
+                    startDataSync();
+                } else {
+                    errorMsg.classList.remove('hidden');
+                    document.getElementById('admin-pass-input').classList.add('border-red-600');
+                    setTimeout(() => {
+                        document.getElementById('admin-pass-input').classList.remove('border-red-600');
+                    }, 500);
+                }
+            };
+
+            document.getElementById('tab-inventory-btn').onclick = () => switchTab('inventory');
+            document.getElementById('tab-reservations-btn').onclick = () => switchTab('reservations');
+            
+            // 認証プロセスの開始
+            initAuthProcess();
+        };
+
+        async function initAuthProcess() {
             try {
+                // 匿名認証を実行
                 await signInAnonymously(auth);
             } catch (err) {
-                console.error(err);
-                hideLoading();
+                console.error("Auth Failed:", err);
+                document.getElementById('loading-text').innerText = "接続に失敗しました。再読み込みしてください。";
             }
         }
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
+                isAuthReady = true;
                 updateBadge(true);
-                syncInventory();
-                syncReservations();
+                hideLoading();
+            } else {
+                isAuthReady = false;
+                updateBadge(false);
             }
         });
 
-        // 在庫同期
-        function syncInventory() {
-            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', 'status');
-            onSnapshot(ref, (snap) => {
+        function startDataSync() {
+            if (!currentUser) return;
+            
+            // 在庫同期 (RULE 1: Strict Paths)
+            const inventoryRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', 'status');
+            onSnapshot(inventoryRef, (snap) => {
                 soldOutItems = snap.exists() ? snap.data().soldOut : {};
                 renderInventory();
-                hideLoading();
+            }, (err) => {
+                console.error("Inventory Sync Error:", err);
             });
-        }
 
-        // 予約同期
-        function syncReservations() {
-            const ref = collection(db, 'artifacts', appId, 'public', 'data', 'reservations');
-            // RULE 2に従い、シンプルなクエリで取得しJSでソート
-            onSnapshot(ref, (snap) => {
+            // 予約同期 (RULE 1: Strict Paths)
+            const resRef = collection(db, 'artifacts', appId, 'public', 'data', 'reservations');
+            onSnapshot(resRef, (snap) => {
                 const docs = [];
                 snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-                docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                
+                // RULE 2: Fetch all and sort in JS
+                docs.sort((a, b) => {
+                    const timeA = a.createdAt?.seconds || 0;
+                    const timeB = b.createdAt?.seconds || 0;
+                    return timeB - timeA;
+                });
+                
                 renderReservations(docs);
+            }, (err) => {
+                console.error("Reservations Sync Error:", err);
+                const msg = document.getElementById('reservation-loading-msg');
+                if (msg) msg.innerText = "データの取得権限がありません。管理者設定を確認してください。";
             });
         }
 
-        // ログイン処理
-        document.getElementById('login-btn').onclick = () => {
-            const pass = document.getElementById('admin-pass-input').value;
-            if (pass === '613613613') {
-                document.getElementById('login-overlay').classList.add('hidden');
-                document.getElementById('admin-main').classList.remove('hidden');
-            } else {
-                alert("パスコードが正しくありません");
-            }
-        };
-
-        // 在庫トグル
         window.toggleStock = async (id) => {
+            if (!currentUser) return;
             const newSold = { ...soldOutItems, [id]: !soldOutItems[id] };
             try {
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', 'status'), { soldOut: newSold });
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', 'status'), { 
+                    soldOut: newSold,
+                    updatedAt: new Date()
+                });
             } catch (err) {
-                alert("更新エラー: " + err.message);
+                alert("在庫の更新に失敗しました: " + err.message);
             }
         };
 
         function renderInventory() {
             const grid = document.getElementById('inventory-grid');
+            if(!grid) return;
             grid.innerHTML = MENU.map(item => {
                 const isSold = soldOutItems[item.id];
                 return `
@@ -203,12 +238,15 @@
 
         function renderReservations(orders) {
             const container = document.getElementById('reservation-list');
+            if (!container) return;
+            
             if (orders.length === 0) {
                 container.innerHTML = '<p class="text-center py-10 text-stone-600 text-xs italic">現在、予約はありません</p>';
                 return;
             }
+
             container.innerHTML = orders.map(order => {
-                const date = order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : '不明';
+                const date = order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString('ja-JP') : '日付不明';
                 const itemsText = Object.entries(order.items || {})
                     .map(([key, qty]) => {
                         const [id, flavor] = key.split('-');
@@ -220,16 +258,16 @@
                 <div class="bg-stone-900 border border-stone-800 p-5 rounded-[2rem] space-y-3">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs font-black text-white">${order.name} 様</p>
-                            <p class="text-[10px] text-stone-500">${order.phone}</p>
+                            <p class="text-xs font-black text-white">${order.name || '名前なし'} 様</p>
+                            <p class="text-[10px] text-stone-500">${order.phone || '電話なし'}</p>
                         </div>
                         <div class="text-right">
-                            <p class="text-[10px] font-black text-orange-500 italic">${order.date} 受取</p>
-                            <p class="text-[9px] text-stone-600">${order.location}</p>
+                            <p class="text-[10px] font-black text-orange-500 italic">${order.date || ''} 受取</p>
+                            <p class="text-[9px] text-stone-600">${order.location || ''}</p>
                         </div>
                     </div>
                     <div class="p-3 bg-stone-950 rounded-xl text-[11px] text-stone-400 leading-relaxed border border-stone-800/50">
-                        ${itemsText}
+                        ${itemsText || '注文内容なし'}
                     </div>
                     <div class="flex justify-between items-center pt-1">
                         <span class="text-[10px] text-stone-600">${date} 注文</span>
@@ -239,35 +277,38 @@
             }).join('');
         }
 
-        // タブ切り替え
-        window.switchTab = (tab) => {
+        function switchTab(tab) {
             const isInv = tab === 'inventory';
             document.getElementById('section-inventory').classList.toggle('hidden', !isInv);
             document.getElementById('section-reservations').classList.toggle('hidden', isInv);
             
-            document.getElementById('tab-inventory').className = isInv 
-                ? 'flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all bg-orange-600 text-white' 
-                : 'flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all text-stone-500';
-            document.getElementById('tab-reservations').className = !isInv 
-                ? 'flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all bg-orange-600 text-white' 
-                : 'flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all text-stone-500';
+            const invBtn = document.getElementById('tab-inventory-btn');
+            const resBtn = document.getElementById('tab-reservations-btn');
             
+            if (isInv) {
+                invBtn.className = 'flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all bg-orange-600 text-white';
+                resBtn.className = 'flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all text-stone-500';
+            } else {
+                invBtn.className = 'flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all text-stone-500';
+                resBtn.className = 'flex-1 py-3 rounded-[1.8rem] text-xs font-black transition-all bg-orange-600 text-white';
+            }
             lucide.createIcons();
-        };
+        }
 
         function updateBadge(ok) {
             const b = document.getElementById('connection-badge');
             if(!b) return;
-            b.innerText = ok ? 'CONNECTED' : 'OFFLINE';
+            b.innerText = ok ? 'ONLINE' : 'OFFLINE';
             b.className = `text-[9px] font-black px-2 py-1 rounded-md uppercase ${ok ? 'bg-stone-800 text-orange-500' : 'bg-red-900 text-white'}`;
         }
 
         function hideLoading() {
-            document.getElementById('loading-screen').style.opacity = '0';
-            setTimeout(() => document.getElementById('loading-screen').classList.add('hidden'), 500);
+            const loader = document.getElementById('loading-screen');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.classList.add('hidden'), 500);
+            }
         }
-
-        init();
     </script>
 </body>
 </html>
